@@ -1,0 +1,56 @@
+version: '3.7'
+
+#docker-compose -f docker-compose.yml -f production.yml up -d
+services:
+
+  webgateway:
+    build: ./webgateway
+    #command: python manage.py runserver 0.0.0.0:8001
+    command: gunicorn proj_webgateway.wsgi:application --bind 0.0.0.0:8001
+    volumes:
+      - ./webgateway:/usr/src/app/
+    ports:
+      - 8001:8001
+    env_file:
+      - ./webgateway/.env.dev
+    depends_on: 
+      - mysql-webgateway-db
+
+  #configurator:
+  #  build: ./configurator
+  #  command: python manage.py runserver 0.0.0.0:8002
+  #  #command: gunicorn proj_configurator.wsgi:application --bind 0.0.0.0:8002
+  #  volumes:
+  #    - ./configurator:/usr/src/app/
+  #  ports:
+  #    - 8002:8002
+  #  env_file:
+  #    - ./configurator/.env.dev
+  #  depends_on: 
+  #    - mysql-db
+
+  #mysql-db:
+  #  build: ./databases/configurator
+  #  command: mysqld --default-authentication-plugin=mysql_native_password
+  #  #volumes:
+  #  #  - ./databases/configurator/backup:/var/lib/mysql
+  #  restart: always
+  #  environment:
+  #    - MYSQL_ROOT_PASSWORD=secret_pass
+  #    - MYSQL_DATABASE=mysql_dev
+  #    - MYSQL_USER=admin
+  #    - MYSQL_PASSWORD=password
+
+  mysql-webgateway-db:
+    build: ./databases/webgateway
+    command: mysqld --default-authentication-plugin=mysql_native_password
+    ports:
+      - 3306:3306
+    #volumes:
+    #  - ./databases/webgateway/backup:/var/lib/mysql
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret_pass
+      - MYSQL_DATABASE=apigateway_dev
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=password
