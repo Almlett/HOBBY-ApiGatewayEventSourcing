@@ -2,12 +2,12 @@
 Autogenerate admin file
 """
 from django.contrib import admin
-from .models import Proyect, Api	# pylint: disable=relative-beyond-top-level
+from .models import EndPoint, Api  # pylint: disable=relative-beyond-top-level
 
 
-class ProyectAdmin(admin.ModelAdmin):
+class EndPointAdmin(admin.ModelAdmin):
     """
-    Add Proyect to Admin
+    Add EndPoint to Admin
     """
 
 
@@ -17,7 +17,5 @@ class ApiAdmin(admin.ModelAdmin):
     """
 
 
-
-
-admin.site.register(Proyect, ProyectAdmin)
+admin.site.register(EndPoint, EndPointAdmin)
 admin.site.register(Api, ApiAdmin)

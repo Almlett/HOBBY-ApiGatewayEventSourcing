@@ -4,7 +4,7 @@
 
 from django.conf.urls import include, re_path, url
 from rest_framework.routers import DefaultRouter
-from .viewsets import ProyectViewSet, ApiViewSet, Gateway  # pylint: disable=relative-beyond-top-level
+from .viewsets import EndPointViewSet, ApiViewSet, Gateway  # pylint: disable=relative-beyond-top-level
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -24,7 +24,7 @@ schema_view = get_schema_view(
 
 
 router = DefaultRouter()
-router.register(r'proyects', ProyectViewSet)
+router.register(r'endpoints', EndPointViewSet)
 router.register(r'apilist', ApiViewSet)
 
 urlpatterns = [
@@ -34,6 +34,7 @@ urlpatterns = [
                                            cache_timeout=0), name='schema-swagger-ui'),
     url(r'^redoc/$', schema_view.with_ui('redoc',
                                          cache_timeout=0), name='schema-redoc'),
+    re_path(r'api/.*', Gateway.as_view())
 ]
 
 urlpatterns += router.urls

@@ -11,24 +11,19 @@ services:
     ports:
       - 8001:8001
     env_file:
-      - ./webgateway/.env.dev
+      - ./config/.env.dev
     depends_on: 
-      - mysql-webgateway-db
+      - webgateway-db
     networks:
       - mediexcel_network
 
 
-  mysql-webgateway-db:
-    build: ./databases/webgateway
-    command: mysqld --default-authentication-plugin=mysql_native_password
-    #volumes:
-    #  - ./databases/webgateway/backup:/var/lib/mysql
-    restart: always
-    environment:
-      - MYSQL_ROOT_PASSWORD=secret_pass
-      - MYSQL_DATABASE=apigateway_dev
-      - MYSQL_USER=admin
-      - MYSQL_PASSWORD=password
+  webgateway-db:
+    image: mariadb:10.7.3
+    volumes:
+      - ./databases/webgateway/backup:/var/lib/mysql
+    env_file:
+      - ./config/.env.dev
     networks:
       - mediexcel_network
 
