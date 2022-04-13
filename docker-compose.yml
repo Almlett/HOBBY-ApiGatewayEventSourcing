@@ -27,6 +27,19 @@ services:
     networks:
       - mediexcel_network
 
+  rabbit:
+    image: rabbitmq:3-management
+    container_name: 'rabbit'
+    ports:
+      - 5672:5672
+      - 15672:15672
+    networks:
+      - mediexcel_network
+    env_file:
+      - ./config/.env.dev
+    depends_on: 
+      - webgateway
+
   
 networks:
   mediexcel_network:

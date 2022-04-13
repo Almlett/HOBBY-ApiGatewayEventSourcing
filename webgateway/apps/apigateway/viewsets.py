@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from users.utils import Auth
+from .tasks import send_to_rabbitmq
 
 
 class EndPointViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-ancestors
@@ -152,7 +153,7 @@ class Gateway(APIView):
         return result
 
     def operation(self, request):
-        """URLS Manager, get and redirect urls from gateway/api
+        """URLS Manager, get and redirect urls from gateway/api to rabbitMQ
         """
         path = request.path_info.split('/')
         if len(path) < 3:
@@ -174,17 +175,18 @@ class Gateway(APIView):
         if not valid:
             return Response({'detail': msg}, status=status.HTTP_403_FORBIDDEN)
 
-        try:
-            response = self.send_request(apimodel[0], request)
-            # It was sent directly to the remote server, now it will be sent to a message stack
-            # if res.headers.get('Content-Type', '').lower() == 'application/json':
-            #    data = res.json()
-            # else:
-            #    data = res.content
-
-            return Response({'result': response}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({'detail': 'Failed to establish connection, destination server unreachable'}, status=status.HTTP_400_BAD_REQUEST)
+        response = self.send_request(apimodel[0], request)
+        send_to_rabbitmq.delay(response)
+        return Response({'result': response}, status=status.HTTP_200_OK)
+        # try:
+        # It was sent directly to the remote server, now it will be sent to a message stack
+        # if res.headers.get('Content-Type', '').lower() == 'application/json':
+        #    data = res.json()
+        # else:
+        #    data = res.content
+        # return Response({'result': response}, status=status.HTTP_200_OK)
+        # except Exception as e:
+        #    return Response({'detail': 'Failed to establish connection, destination server unreachable'}, status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request):
         return self.operation(request)

@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
+from .json_encoder import my_dumps, my_loads
+from kombu.serialization import register
 import os
 import sys
 from unipath import Path
@@ -47,6 +49,7 @@ INSTALLED_APPS = [
     'apigateway',
     'permissions',
     'users',
+    'djcelery'
 
 ]
 
@@ -206,3 +209,23 @@ LOGGING = {
 
     }
 }
+
+RABBIT_USER = os.environ.get("RABBITMQ_DEFAULT_USER", "guest")
+RABBIT_PASS = os.environ.get("RABBITMQ_DEFAULT_PASS", "guest")
+RABBIT_HOST = os.environ.get("RABBIT_HOST", "localhost")
+RABBIT_PORT = os.environ.get("RABBIT_PORT", "5672")
+
+BROKER_URL = 'amqp://{}:{}@{}:{}//'.format(
+    RABBIT_USER, RABBIT_PASS, RABBIT_HOST, RABBIT_PORT)
+
+
+CELERY_RESULT_BACKEND = 'djcelery.backends.database:DatabaseBackend'
+
+register('json_encoder', my_dumps, my_loads,
+         content_type='application/x-myjson',
+         content_encoding='utf-8')
+
+# Tell celery to use your new serializer:
+CELERY_ACCEPT_CONTENT = ['json_encoder']
+CELERY_TASK_SERIALIZER = 'json_encoder'
+CELERY_RESULT_SERIALIZER = 'json_encoder'
