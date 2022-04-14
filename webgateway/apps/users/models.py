@@ -4,27 +4,29 @@ Models
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import ugettext_lazy as _
-from permissions.models import Profile, Permission
+from permissions.models import Profile, Permission, ProfilePermission
 
 
 class ApiUser(AbstractUser):
     """
     Model ApiUser
     """
-    
+
     email = models.EmailField(_('email address'), unique=True)
     first_name = models.CharField(_('first name'), max_length=255, blank=True)
     last_name = models.CharField(_('last name'), max_length=255, blank=True)
     department = models.CharField(_('department'), max_length=255, blank=True)
     date_joined = models.DateTimeField(_('date joined'), auto_now_add=True)
-    phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
+    phone_number = models.CharField(
+        _('phone number'), max_length=255, blank=True)
     is_active = models.BooleanField(_('active'), default=True)
-    immediate_boss = models.ForeignKey('self', on_delete=models.CASCADE, blank=True, null=True)
+    immediate_boss = models.ForeignKey(
+        'self', on_delete=models.CASCADE, blank=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
 
-    def get_permissions(obj, type = "all"):
+    def get_permissions(obj, type="all"):
         """
         type = all, frontend, backend
         categorized = true, false
@@ -49,7 +51,8 @@ class ApiUser(AbstractUser):
 
         for u_profile in user_profiles:
             enabled_perm = u_profile.enabled
-            objects = ProfilePermission.objects.filter(profile=u_profile.profile)
+            objects = ProfilePermission.objects.filter(
+                profile=u_profile.profile)
             for perm in objects:
                 if enabled_perm:
                     enabled_perm = u_profile.profile.enabled
@@ -67,7 +70,7 @@ class ApiUser(AbstractUser):
                     temp['profile'] = u_profile.profile.name
                     result.append(temp)
         return result
-    
+
     def __str__(self):
         return f"{self.username}"
 
@@ -119,6 +122,7 @@ class UserPermission(models.Model):
         """
         return str(self.permission.name)
 
+
 class Turn(models.Model):
     """
     Model Turn
@@ -142,8 +146,10 @@ class Department(models.Model):
     """
 
     name = models.CharField(_('name'), max_length=255, unique=True)
-    general_profile = models.CharField(_('general profile'), max_length=255, blank=True, null=True)
-    root_department = models.ForeignKey('self', on_delete=models.CASCADE, blank=True, null=True)
+    general_profile = models.CharField(
+        _('general profile'), max_length=255, blank=True, null=True)
+    root_department = models.ForeignKey(
+        'self', on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
         """
