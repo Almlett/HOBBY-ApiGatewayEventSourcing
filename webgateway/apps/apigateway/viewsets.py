@@ -97,13 +97,13 @@ class Gateway(APIView):
 
         url = "{}://{}:{}/{}".format(protocol, host, port, path)
         method = request.method.lower()
-        method_map = {
+        ''' method_map = {
             'get': requests.get,
             'post': requests.post,
             'put': requests.put,
             'patch': requests.patch,
             'delete': requests.delete
-        }
+        } '''
 
         for k, v in request.FILES.items():
             request.data.pop(k)
@@ -125,7 +125,7 @@ class Gateway(APIView):
         }
         return result
 
-    def api_list(self, request):
+    def api_list(self, request, protocol='http'):
         """Get endpoints list
 
         Returns:
@@ -144,8 +144,8 @@ class Gateway(APIView):
             urls = Api.objects.filter(origin=item)
             urls_list = {}
             for url in urls:
-                urls_list["gateway/api/" + url.api_path] = "http://{}:{}/{}".format(
-                    endpoint['host'], endpoint['port'], url.request_path)
+                urls_list["gateway/api/" + url.api_path] = "{}://{}:{}/{}".format(
+                    protocol, endpoint['host'], endpoint['port'], url.request_path)
             endpoint['urls'] = urls_list
 
             result.append(endpoint)
