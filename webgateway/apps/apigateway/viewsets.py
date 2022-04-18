@@ -1,18 +1,23 @@
 """
 Autogenerate viewsets file
 """
+import datetime
 from rest_framework import viewsets
 from .models import EndPoint, Api 	# pylint: disable=relative-beyond-top-level
 from .serializers import EndPointSerializer, ApiSerializer  # pylint: disable=relative-beyond-top-level
 from users.serializers import ApiUserSerializer
 import requests
 import json
+import boto3
+import os
 from django.shortcuts import render
 from django.http import HttpResponse
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from users.utils import Auth
+from pymongo import MongoClient
+import uuid
 
 
 class EndPointViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-ancestors
@@ -55,7 +60,7 @@ class Gateway(APIView):
         """
 
         if api.plugin == 0:
-            return True, 'Remote validation'
+            return True, 'Remote validation', "External Validation"
         elif api.plugin == 1:
             is_valid, user = Auth().valid_token(request.META.get('HTTP_AUTHORIZATION'))
             method = request.method.lower()
@@ -72,13 +77,13 @@ class Gateway(APIView):
                 permission = api.permission_set.get(type=method_map[method])
                 user_permissions = user.get_permissions(type='query')
                 if permission in user_permissions:
-                    return True, 'Valid permission'
-                return False, 'Invalid permission'
-            return False, 'Valid token is needed'
+                    return True, 'Valid permission', user
+                return False, 'Invalid permission', None
+            return False, 'Valid token is needed', None
         else:
             raise NotImplementedError("Not plugin implemented")
 
-    def send_request(self, api, request, protocol='http'):
+    def send_request(self, api, request, user, protocol='http'):
         """Send request to remote server
 
         Args:
@@ -116,12 +121,19 @@ class Gateway(APIView):
             data = request.data
         # It was sent directly to the remote server, now it will be sent to a message stack
         # return method_map[method](url, headers=headers, data=data, files=request.FILES)
+        #payload, timestamp, ID, type, author
+
         result = {
-            'method': method,
-            'url': url,
-            'headers': headers,
-            'data': data,
-            'files': request.FILES
+            'payload': {
+                'url': url,
+                'headers': headers,
+                'data': json.loads(data) if data else None,
+                'files': request.FILES
+            },
+            'timestamp': str(datetime.datetime.now()),
+            '_id': str(uuid.uuid4()),
+            'type': method,
+            'author': user
         }
         return result
 
@@ -151,6 +163,43 @@ class Gateway(APIView):
             result.append(endpoint)
         return result
 
+    def get_db_handle(self):
+        """Method to create a connection to a database
+
+        Returns:
+            db_handle: Database handle
+        """
+        host = os.environ.get('MONGO_INITDB_HOST')
+        port = os.environ.get('MONGO_INITDB_PORT')
+        username = os.environ.get('MONGO_INITDB_ROOT_USERNAME')
+        password = os.environ.get('MONGO_INITDB_ROOT_PASSWORD')
+        db_name = os.environ.get('MONGO_INITDB_NAME')
+        try:
+            client = MongoClient(host=host,
+                                 port=int(port),
+                                 username=username,
+                                 password=password
+                                 )
+            db_handle = client[db_name]
+            return db_handle, client
+        except Exception:
+            return None
+
+    def insert_mongo(self, message):
+        """Method to insert a message into a database
+        """
+        db_handle, client = self.get_db_handle()
+        try:
+            collection_name = db_handle["events_c"]
+            print("\n\n\n\n")
+            print(message)
+            print("\n\n\n\n")
+            collection_name.insert_one(message)
+            client.close()
+            return True
+        except Exception:
+            return False
+
     def operation(self, request):
         """URLS Manager, get and redirect urls from gateway/api
         """
@@ -169,18 +218,38 @@ class Gateway(APIView):
         if apimodel.count() != 1:
             return Response({'detail': 'URL not found'}, status=status.HTTP_400_BAD_REQUEST)
 
-        valid, msg = self.check_plugin(apimodel[0], request)
+        valid, msg, user = self.check_plugin(apimodel[0], request)
 
         if not valid:
             return Response({'detail': msg}, status=status.HTTP_403_FORBIDDEN)
 
         try:
-            response = self.send_request(apimodel[0], request)
+            message = self.send_request(apimodel[0], request, user)
+            insert_mongo = self.insert_mongo(message)
+            if not insert_mongo:
+                return Response({'detail': 'Failed to establish connection, mongo server unreachable'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             # It was sent directly to the remote server, now it will be sent to a message stack
             # if res.headers.get('Content-Type', '').lower() == 'application/json':
             #    data = res.json()
             # else:
             #    data = res.content
+
+            AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", None)
+            AWS_SECRET_ACCESS_KEY = os.environ.get(
+                "AWS_SECRET_ACCESS_KEY", None)
+            AWS_SNS_ARN = os.environ.get("AWS_SNS_ARN", None)
+
+            # Get the service resource
+
+            sns = boto3.client('sns',
+                               aws_access_key_id=AWS_ACCESS_KEY_ID,
+                               aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+                               region_name='us-west-2')
+
+            response = sns.publish(
+                TargetArn=AWS_SNS_ARN,
+                Message=json.dumps(json.dumps(message))
+            )
 
             return Response({'result': response}, status=status.HTTP_200_OK)
         except Exception as e:

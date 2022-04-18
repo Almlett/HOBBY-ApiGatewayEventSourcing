@@ -7,3 +7,4 @@ webgatewayenv
 .idea
 /databases/configurator/backup
 /databases/webgateway/backup
+/databases/mongo
