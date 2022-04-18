@@ -92,8 +92,8 @@ class Auth:
 
         # add last ip login
         token, _ = Token.objects.get_or_create(user=user)
-        is_expired, token = self._token_expire_handler(token)
-        serializer_data = serializer(user, many=False).data
+        #is_expired, token = self._token_expire_handler(token)
+        #serializer_data = serializer(user, many=False).data
         return {'result': {'token': token.key}}, HTTP_200_OK
 
     def logout(self, token):  # pylint: disable=no-self-use
