@@ -1,23 +1,25 @@
 """
 Autogenerate viewsets file
 """
+import os
+import uuid
+import threading
 import datetime
-from rest_framework import viewsets
+import time
+import requests
+import json
+from django.shortcuts import render
+from django.http import HttpResponse
 from .models import EndPoint, Api 	# pylint: disable=relative-beyond-top-level
 from .serializers import EndPointSerializer, ApiSerializer  # pylint: disable=relative-beyond-top-level
 from users.serializers import ApiUserSerializer
-import requests
-import json
-import boto3
-import os
-from django.shortcuts import render
-from django.http import HttpResponse
+from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from users.utils import Auth
+import boto3
 from pymongo import MongoClient
-import uuid
+from users.utils import Auth
 
 
 class EndPointViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-ancestors
@@ -77,7 +79,7 @@ class Gateway(APIView):
                 permission = api.permission_set.get(type=method_map[method])
                 user_permissions = user.get_permissions(type='query')
                 if permission in user_permissions:
-                    return True, 'Valid permission', user
+                    return True, 'Valid permission', str(user)
                 return False, 'Invalid permission', None
             return False, 'Valid token is needed', None
         else:
@@ -126,14 +128,15 @@ class Gateway(APIView):
         result = {
             'payload': {
                 'url': url,
-                'headers': headers,
+                # 'headers': headers,
                 'data': json.loads(data) if data else None,
                 'files': request.FILES
             },
             'timestamp': str(datetime.datetime.now()),
             '_id': str(uuid.uuid4()),
             'type': method,
-            'author': user
+            'author': user,
+            'status': 'pending'
         }
         return result
 
@@ -191,9 +194,6 @@ class Gateway(APIView):
         db_handle, client = self.get_db_handle()
         try:
             collection_name = db_handle["events_c"]
-            print("\n\n\n\n")
-            print(message)
-            print("\n\n\n\n")
             collection_name.insert_one(message)
             client.close()
             return True
@@ -225,7 +225,13 @@ class Gateway(APIView):
 
         try:
             message = self.send_request(apimodel[0], request, user)
-            insert_mongo = self.insert_mongo(message)
+            #insert_mongo = self.insert_mongo(message)
+            insert_mongo = threading.Thread(
+                target=self.insert_mongo(message), args=(1,))
+            insert_mongo.start()
+            time.sleep(1)
+            stop_threads = True
+            insert_mongo.join()
             if not insert_mongo:
                 return Response({'detail': 'Failed to establish connection, mongo server unreachable'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             # It was sent directly to the remote server, now it will be sent to a message stack
@@ -239,8 +245,6 @@ class Gateway(APIView):
                 "AWS_SECRET_ACCESS_KEY", None)
             AWS_SNS_ARN = os.environ.get("AWS_SNS_ARN", None)
 
-            # Get the service resource
-
             sns = boto3.client('sns',
                                aws_access_key_id=AWS_ACCESS_KEY_ID,
                                aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
@@ -248,7 +252,7 @@ class Gateway(APIView):
 
             response = sns.publish(
                 TargetArn=AWS_SNS_ARN,
-                Message=json.dumps(json.dumps(message))
+                Message=json.dumps(message)
             )
 
             return Response({'result': response}, status=status.HTTP_200_OK)
